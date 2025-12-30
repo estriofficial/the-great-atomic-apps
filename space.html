@@ -188,7 +188,7 @@
       starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
       scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ size:0.08 })));
 
-      // Controls — IMPORTANT: bind to the canvas, not body
+      // Controls — ANT: bind to the canvas, not body
       const controls = new THREE.PointerLockControls(camera, renderer.domElement);
 
       // Pointer lock diagnostics (so it never “fails silently”)

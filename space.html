@@ -1,194 +1,188 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3D Space — The Great Atomic Apps</title>
-
-<style>
-html,body{
-  margin:0;
-  height:100%;
-  overflow:hidden;
-  background:#06161c;
-  font-family:Arial,Helvetica,sans-serif;
-  color:#fff;
-}
-canvas{display:block}
-
-#ui{
-  position:fixed;
-  top:16px; left:16px; right:16px;
-  display:flex;
-  justify-content:space-between;
-  pointer-events:none;
-  z-index:10;
-}
-.pill{
-  pointer-events:auto;
-  background:rgba(0,0,0,.45);
-  backdrop-filter:blur(10px);
-  padding:10px 14px;
-  border-radius:14px;
-  box-shadow:0 15px 40px rgba(0,0,0,.6);
-}
-a.btn{
-  text-decoration:none;
-  color:#00e6a8;
-  border:2px solid #00e6a8;
-  padding:8px 12px;
-  border-radius:10px;
-  font-weight:bold;
-}
-
-#center{
-  position:fixed;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  z-index:9;
-}
-#start{
-  background:#00e6a8;
-  color:#072028;
-  border:none;
-  border-radius:14px;
-  padding:16px 22px;
-  font-size:1rem;
-  font-weight:800;
-  cursor:pointer;
-  box-shadow:0 18px 45px rgba(0,230,168,.3);
-}
-#start:hover{transform:translateY(-2px)}
-
-#crosshair{
-  position:fixed;
-  left:50%; top:50%;
-  transform:translate(-50%,-50%);
-  width:10px; height:10px;
-  border:2px solid rgba(255,255,255,.7);
-  border-radius:50%;
-  display:none;
-}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>3D Space — The Great Atomic Apps</title>
+  <style>
+    html,body{height:100%;margin:0;background:#06161c;color:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
+    #hud{position:fixed;left:16px;top:16px;right:16px;display:flex;justify-content:space-between;gap:10px;z-index:10;pointer-events:none;}
+    .pill{pointer-events:auto;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(10px);
+      border-radius:14px;padding:10px 12px;box-shadow:0 20px 60px rgba(0,0,0,.5);max-width:980px}
+    .btn{pointer-events:auto;text-decoration:none;padding:10px 12px;border-radius:12px;font-weight:bold;border:2px solid rgba(0,230,168,.7);color:#00e6a8;background:transparent;display:inline-block}
+    #center{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9}
+    #start{background:#00e6a8;color:#072028;border:none;border-radius:14px;padding:14px 18px;font-weight:800;cursor:pointer;box-shadow:0 18px 45px rgba(0,230,168,.22)}
+    #msg{margin-top:10px;opacity:.9;color:#ffd27a;font-size:.95rem;max-width:520px;text-align:center}
+    #cross{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border:2px solid rgba(255,255,255,.75);
+      border-radius:50%;opacity:.55;display:none;z-index:11;pointer-events:none}
+    canvas{display:block}
+  </style>
 </head>
-
 <body>
 
-<div id="ui">
-  <div class="pill">
-    <strong>3D Space</strong>
-    <span style="opacity:.85;font-size:.9rem">
-      Click Start → WASD + mouse → ESC to unlock
-    </span>
+  <div id="hud">
+    <div class="pill">
+      <strong>3D Space</strong>
+      <span id="status" style="margin-left:10px;color:#d6e6f2;opacity:.95;font-size:.92rem">Loading…</span>
+    </div>
+    <div class="pill">
+      <a class="btn" href="index.html">← Back</a>
+    </div>
   </div>
-  <div class="pill">
-    <a class="btn" href="index.html">← Back</a>
+
+  <div id="center">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+      <button id="start">Start Walking</button>
+      <div id="msg">If Start doesn’t lock mouse, click once on the 3D scene.</div>
+    </div>
   </div>
-</div>
 
-<div id="center">
-  <button id="start">Start Walking</button>
-</div>
+  <div id="cross"></div>
 
-<div id="crosshair"></div>
+  <script type="module">
+    const statusEl = document.getElementById("status");
+    const msgEl = document.getElementById("msg");
+    const startBtn = document.getElementById("start");
+    const center = document.getElementById("center");
+    const cross = document.getElementById("cross");
 
-<script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { PointerLockControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/PointerLockControls.js";
+    function setStatus(t){ statusEl.textContent = t; }
+    function setMsg(t){ msgEl.textContent = t; }
 
-/* Scene */
-const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x06161c, 0, 80);
+    // ✅ Correct URLs (these MUST load)
+    let THREE, PointerLockControls;
+    try {
+      THREE = await import("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js");
+      ({ PointerLockControls } = await import("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/PointerLockControls.js"));
+      setStatus("Three.js + PointerLockControls loaded ✅");
+    } catch (e) {
+      console.error(e);
+      setStatus("FAILED to load 3D libraries ❌");
+      setMsg("Open DevTools → Console. If you see a blocked URL, your network/browser blocked jsDelivr.");
+      throw e;
+    }
 
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 200);
-camera.position.set(0,1.7,6);
+    // Scene
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x06161c, 0, 85);
 
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(devicePixelRatio);
-document.body.appendChild(renderer.domElement);
+    const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 300);
+    camera.position.set(0, 1.7, 6);
 
-/* Lights */
-scene.add(new THREE.HemisphereLight(0xaadfff, 0x0b1c23, 1));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(5,10,5);
-scene.add(sun);
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
 
-/* Floor */
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(400,400),
-  new THREE.MeshStandardMaterial({color:0x0b1c23, roughness:.9})
-);
-floor.rotation.x = -Math.PI/2;
-scene.add(floor);
+    scene.add(new THREE.HemisphereLight(0xaadfff, 0x0b1c23, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    dir.position.set(6, 12, 6);
+    scene.add(dir);
 
-/* Objects */
-function box(x,y,z,w,h,d,c){
-  const m = new THREE.Mesh(
-    new THREE.BoxGeometry(w,h,d),
-    new THREE.MeshStandardMaterial({color:c})
-  );
-  m.position.set(x,y,z);
-  scene.add(m);
-}
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(400, 400),
+      new THREE.MeshStandardMaterial({ color:0x0b1c23, roughness:0.95 })
+    );
+    floor.rotation.x = -Math.PI/2;
+    scene.add(floor);
 
-box(0,1.5,-15,25,3,1,0x0b2a31);
-box(-12,1.5,-6,1,3,20,0x0b2a31);
-box(12,1.5,-6,1,3,20,0x0b2a31);
-box(-5,1.2,-8,2,2.5,.3,0x00e6a8);
-box(5,1.2,-8,2,2.5,.3,0x00c994);
+    function addBox(x,y,z,sx,sy,sz,color){
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(sx,sy,sz),
+        new THREE.MeshStandardMaterial({ color })
+      );
+      mesh.position.set(x,y,z);
+      scene.add(mesh);
+    }
 
-/* Controls */
-const controls = new PointerLockControls(camera, document.body);
-const startBtn = document.getElementById("start");
-const center = document.getElementById("center");
-const crosshair = document.getElementById("crosshair");
+    addBox(0, 1.5, -18, 26, 3, 1, 0x0b2a31);
+    addBox(-13, 1.5, -6, 1, 3, 26, 0x0b2a31);
+    addBox(13, 1.5, -6, 1, 3, 26, 0x0b2a31);
+    addBox(-6, 1.2, -8, 2.2, 2.4, 0.3, 0x00e6a8);
+    addBox( 6, 1.2, -8, 2.2, 2.4, 0.3, 0x00c994);
 
-startBtn.onclick = () => controls.lock();
-controls.addEventListener("lock", ()=>{
-  center.style.display="none";
-  crosshair.style.display="block";
-});
-controls.addEventListener("unlock", ()=>{
-  center.style.display="flex";
-  crosshair.style.display="none";
-});
+    // Controls (bind to canvas)
+    const controls = new PointerLockControls(camera, renderer.domElement);
 
-/* Movement */
-const keys = {w:0,a:0,s:0,d:0};
-onkeydown = e => keys[e.key.toLowerCase()] = 1;
-onkeyup = e => keys[e.key.toLowerCase()] = 0;
+    document.addEventListener("pointerlockerror", () => {
+      setStatus("Pointer lock blocked ❌");
+      setMsg("Check Site Settings → Pointer lock / permissions. Then click the scene and press Start again.");
+    });
 
-const clock = new THREE.Clock();
-const vel = new THREE.Vector3();
-const dir = new THREE.Vector3();
-const speed = 6;
+    function lockNow(){ controls.lock(); }
 
-function animate(){
-  requestAnimationFrame(animate);
-  const dt = clock.getDelta();
+    startBtn.addEventListener("click", (e) => { e.preventDefault(); lockNow(); });
+    renderer.domElement.addEventListener("click", () => { if(!controls.isLocked) lockNow(); });
 
-  if(controls.isLocked){
-    dir.set(keys.d-keys.a,0,keys.s-keys.w).normalize();
-    vel.x += (dir.x*speed - vel.x)*20*dt;
-    vel.z += (dir.z*speed - vel.z)*20*dt;
-    controls.moveRight(vel.x*dt);
-    controls.moveForward(vel.z*dt);
-    camera.position.y = 1.7;
-  }
+    controls.addEventListener("lock", () => {
+      center.style.display = "none";
+      cross.style.display = "block";
+      setStatus("Walking ✅ (WASD + mouse, ESC unlock)");
+      setMsg("WASD to move. ESC to unlock.");
+    });
 
-  renderer.render(scene,camera);
-}
-animate();
+    controls.addEventListener("unlock", () => {
+      center.style.display = "flex";
+      cross.style.display = "none";
+      setStatus("Unlocked (press Start)");
+      setMsg("Press Start again. If it doesn’t lock, click the scene once.");
+    });
 
-onresize = ()=>{
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-};
-</script>
+    const keys = { w:false, a:false, s:false, d:false };
+    addEventListener("keydown", (e) => {
+      if(e.code==="KeyW") keys.w=true;
+      if(e.code==="KeyA") keys.a=true;
+      if(e.code==="KeyS") keys.s=true;
+      if(e.code==="KeyD") keys.d=true;
+    });
+    addEventListener("keyup", (e) => {
+      if(e.code==="KeyW") keys.w=false;
+      if(e.code==="KeyA") keys.a=false;
+      if(e.code==="KeyS") keys.s=false;
+      if(e.code==="KeyD") keys.d=false;
+    });
 
+    const clock = new THREE.Clock();
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const speed = 6;
+
+    function clampPlayer(){
+      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -12, 12);
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -22, 16);
+      camera.position.y = 1.7;
+    }
+
+    function animate(){
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      if (controls.isLocked) {
+        direction.set(0,0,0);
+        if(keys.w) direction.z -= 1;
+        if(keys.s) direction.z += 1;
+        if(keys.a) direction.x -= 1;
+        if(keys.d) direction.x += 1;
+        direction.normalize();
+
+        const accel = 22;
+        velocity.x += (direction.x*speed - velocity.x) * accel * dt;
+        velocity.z += (direction.z*speed - velocity.z) * accel * dt;
+
+        controls.moveRight(velocity.x * dt);
+        controls.moveForward(velocity.z * dt);
+        clampPlayer();
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
 </body>
 </html>

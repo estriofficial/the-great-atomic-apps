@@ -34,10 +34,7 @@
     a.btn:hover{transform:translateY(-1px)}
     #hint{font-size:.92rem;opacity:.95;color:#d6e6f2}
     #status{
-      font-size:.9rem;
-      color:#ffd27a;
-      opacity:.95;
-      display:none;
+      font-size:.9rem;color:#ffd27a;opacity:.95;display:none;
     }
 
     #center{
@@ -52,19 +49,10 @@
     }
     #start:hover{transform:translateY(-2px)}
 
-    /* Crosshair should NOT be inside #center, or it disappears */
     #crosshair{
-      position:fixed;
-      left:50%;
-      top:50%;
-      transform:translate(-50%,-50%);
-      width:10px;height:10px;
-      border:2px solid rgba(255,255,255,.75);
-      border-radius:50%;
-      opacity:.55;
-      display:none;
-      z-index:18;
-      pointer-events:none;
+      position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+      width:10px;height:10px;border:2px solid rgba(255,255,255,.75);border-radius:50%;
+      opacity:.55;display:none;z-index:18;pointer-events:none;
     }
 
     canvas{display:block;}
@@ -75,7 +63,7 @@
   <div id="ui">
     <div class="pill">
       <strong>3D Space</strong>
-      <span id="hint">Click “Start”, then use <b>W A S D</b> + mouse to look. <b>ESC</b> to unlock. (You can also click anywhere to lock.)</span>
+      <span id="hint">Click “Start”, then use <b>W A S D</b> + mouse to look. <b>ESC</b> to unlock.</span>
       <span id="status"></span>
     </div>
     <div class="pill">
@@ -86,190 +74,174 @@
   <div id="center">
     <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
       <button id="start">Start Walking</button>
-      <div style="opacity:.75;font-size:.9rem;color:#d6e6f2;">Tip: After starting, click once to lock the mouse</div>
+      <div style="opacity:.75;font-size:.9rem;color:#d6e6f2;">Tip: after clicking Start, click once in the scene if needed</div>
     </div>
   </div>
 
   <div id="crosshair"></div>
 
-  <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-    import { PointerLockControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/PointerLockControls.js";
+  <!-- Non-module Three.js + PointerLockControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
 
-    const statusEl = document.getElementById("status");
-    const startBtn = document.getElementById("start");
-    const center = document.getElementById("center");
-    const crosshair = document.getElementById("crosshair");
+  <script>
+    (function(){
+      const statusEl = document.getElementById("status");
+      const startBtn = document.getElementById("start");
+      const center = document.getElementById("center");
+      const crosshair = document.getElementById("crosshair");
 
-    function showStatus(msg){
-      statusEl.style.display = "inline";
-      statusEl.textContent = msg;
-    }
-    function clearStatus(){
-      statusEl.style.display = "none";
-      statusEl.textContent = "";
-    }
+      function showStatus(msg){
+        statusEl.style.display = "inline";
+        statusEl.textContent = msg;
+      }
+      function clearStatus(){
+        statusEl.style.display = "none";
+        statusEl.textContent = "";
+      }
 
-    // Helpful warning: pointer lock is often blocked on http / bad ssl
-    const isSecure = (window.isSecureContext === true);
-    if(!isSecure){
-      showStatus("⚠ Pointer lock may be blocked because the page is not HTTPS/secure yet. Fix SSL/HTTPS on the domain.");
-    }
-
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x06161c, 0, 85);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 300);
-    camera.position.set(0, 1.7, 6);
-
-    const renderer = new THREE.WebGLRenderer({ antialias:true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    document.body.appendChild(renderer.domElement);
-
-    // Lights
-    scene.add(new THREE.HemisphereLight(0xaadfff, 0x0b1c23, 0.9));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
-    dir.position.set(6, 12, 6);
-    scene.add(dir);
-
-    // Floor
-    const floorGeo = new THREE.PlaneGeometry(400, 400, 2, 2);
-    const floorMat = new THREE.MeshStandardMaterial({ color:0x0b1c23, roughness:0.95, metalness:0.0 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI/2;
-    scene.add(floor);
-
-    // Blocks
-    const baseMat = new THREE.MeshStandardMaterial({ color:0x0f2f38, roughness:0.65, metalness:0.1 });
-    function addBox(x,y,z,sx,sy,sz,color){
-      const m = baseMat.clone();
-      if(color) m.color.setHex(color);
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz), m);
-      mesh.position.set(x,y,z);
-      scene.add(mesh);
-      return mesh;
-    }
-
-    addBox(0, 1.5, -18, 26, 3, 1, 0x0b2a31);
-    addBox(-13, 1.5, -6, 1, 3, 26, 0x0b2a31);
-    addBox(13, 1.5, -6, 1, 3, 26, 0x0b2a31);
-
-    addBox(-6, 1.2, -8, 2.2, 2.4, 0.3, 0x00e6a8);
-    addBox( 6, 1.2, -8, 2.2, 2.4, 0.3, 0x00c994);
-
-    for(let i=0;i<10;i++){
-      addBox(-10 + i*2.2, 1.0, -14, 0.35, 2.0, 0.35, 0x173c46);
-    }
-
-    // Stars
-    const starCount = 800;
-    const starGeo = new THREE.BufferGeometry();
-    const starPos = new Float32Array(starCount*3);
-    for(let i=0;i<starCount;i++){
-      const i3 = i*3;
-      starPos[i3+0] = (Math.random()-0.5)*200;
-      starPos[i3+1] = Math.random()*90 + 5;
-      starPos[i3+2] = (Math.random()-0.5)*200;
-    }
-    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
-    const starMat = new THREE.PointsMaterial({ size:0.08 });
-    scene.add(new THREE.Points(starGeo, starMat));
-
-    // Controls
-    const controls = new PointerLockControls(camera, document.body);
-
-    function tryLock(){
-      // This must be called from a user gesture to work reliably
+      // If this shows, JS is running (so button should work)
       clearStatus();
-      try{
-        controls.lock();
-      }catch(e){
-        showStatus("❌ Pointer lock failed. This usually happens on HTTP or invalid SSL.");
-      }
-    }
 
-    startBtn.addEventListener("click", tryLock);
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x06161c, 0, 85);
 
-    // After user interacts once, let them click anywhere to lock
-    document.addEventListener("click", () => {
-      if(!controls.isLocked && center.style.display === "none"){
-        tryLock();
-      }
-    });
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 300);
+      camera.position.set(0, 1.7, 6);
 
-    controls.addEventListener("lock", () => {
-      center.style.display = "none";
-      crosshair.style.display = "block";
-      clearStatus();
-    });
-
-    controls.addEventListener("unlock", () => {
-      center.style.display = "flex";
-      crosshair.style.display = "none";
-      // Remind if insecure
-      if(!window.isSecureContext){
-        showStatus("⚠ Still not HTTPS/secure — pointer lock can be blocked until SSL is fixed.");
-      }
-    });
-
-    // Movement
-    const keys = { w:false, a:false, s:false, d:false };
-    window.addEventListener("keydown", (e) => {
-      if(e.code === "KeyW") keys.w = true;
-      if(e.code === "KeyA") keys.a = true;
-      if(e.code === "KeyS") keys.s = true;
-      if(e.code === "KeyD") keys.d = true;
-    });
-    window.addEventListener("keyup", (e) => {
-      if(e.code === "KeyW") keys.w = false;
-      if(e.code === "KeyA") keys.a = false;
-      if(e.code === "KeyS") keys.s = false;
-      if(e.code === "KeyD") keys.d = false;
-    });
-
-    const clock = new THREE.Clock();
-    const velocity = new THREE.Vector3();
-    const direction = new THREE.Vector3();
-    const speed = 6.0;
-
-    function clampPlayer(){
-      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -12, 12);
-      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -22, 16);
-      camera.position.y = 1.7;
-    }
-
-    function animate(){
-      requestAnimationFrame(animate);
-      const dt = Math.min(clock.getDelta(), 0.05);
-
-      if (controls.isLocked) {
-        direction.set(0,0,0);
-        if(keys.w) direction.z -= 1;
-        if(keys.s) direction.z += 1;
-        if(keys.a) direction.x -= 1;
-        if(keys.d) direction.x += 1;
-        direction.normalize();
-
-        const accel = 22;
-        velocity.x += (direction.x*speed - velocity.x) * accel * dt;
-        velocity.z += (direction.z*speed - velocity.z) * accel * dt;
-
-        controls.moveRight(velocity.x * dt);
-        controls.moveForward(velocity.z * dt);
-
-        clampPlayer();
-      }
-
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth/window.innerHeight;
-      camera.updateProjectionMatrix();
+      const renderer = new THREE.WebGLRenderer({ antialias:true });
       renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      document.body.appendChild(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0xaadfff, 0x0b1c23, 0.9));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+      dir.position.set(6, 12, 6);
+      scene.add(dir);
+
+      const floorGeo = new THREE.PlaneGeometry(400, 400, 2, 2);
+      const floorMat = new THREE.MeshStandardMaterial({ color:0x0b1c23, roughness:0.95, metalness:0.0 });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI/2;
+      scene.add(floor);
+
+      const baseMat = new THREE.MeshStandardMaterial({ color:0x0f2f38, roughness:0.65, metalness:0.1 });
+      function addBox(x,y,z,sx,sy,sz,color){
+        const m = baseMat.clone();
+        if(color) m.color.setHex(color);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz), m);
+        mesh.position.set(x,y,z);
+        scene.add(mesh);
+        return mesh;
+      }
+
+      addBox(0, 1.5, -18, 26, 3, 1, 0x0b2a31);
+      addBox(-13, 1.5, -6, 1, 3, 26, 0x0b2a31);
+      addBox(13, 1.5, -6, 1, 3, 26, 0x0b2a31);
+      addBox(-6, 1.2, -8, 2.2, 2.4, 0.3, 0x00e6a8);
+      addBox( 6, 1.2, -8, 2.2, 2.4, 0.3, 0x00c994);
+
+      for(let i=0;i<10;i++){
+        addBox(-10 + i*2.2, 1.0, -14, 0.35, 2.0, 0.35, 0x173c46);
+      }
+
+      const starCount = 800;
+      const starGeo = new THREE.BufferGeometry();
+      const starPos = new Float32Array(starCount*3);
+      for(let i=0;i<starCount;i++){
+        const i3 = i*3;
+        starPos[i3+0] = (Math.random()-0.5)*200;
+        starPos[i3+1] = Math.random()*90 + 5;
+        starPos[i3+2] = (Math.random()-0.5)*200;
+      }
+      starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+      const starMat = new THREE.PointsMaterial({ size:0.08 });
+      scene.add(new THREE.Points(starGeo, starMat));
+
+      const controls = new THREE.PointerLockControls(camera, document.body);
+
+      function tryLock(){
+        clearStatus();
+        try{
+          controls.lock();
+        }catch(e){
+          showStatus("❌ Pointer lock failed. Try clicking the page, or check browser settings.");
+        }
+      }
+
+      startBtn.addEventListener("click", function(e){
+        e.preventDefault();
+        tryLock();
+      });
+
+      controls.addEventListener("lock", () => {
+        center.style.display = "none";
+        crosshair.style.display = "block";
+        clearStatus();
+      });
+
+      controls.addEventListener("unlock", () => {
+        center.style.display = "flex";
+        crosshair.style.display = "none";
+      });
+
+      const keys = { w:false, a:false, s:false, d:false };
+      window.addEventListener("keydown", (e) => {
+        if(e.code === "KeyW") keys.w = true;
+        if(e.code === "KeyA") keys.a = true;
+        if(e.code === "KeyS") keys.s = true;
+        if(e.code === "KeyD") keys.d = true;
+      });
+      window.addEventListener("keyup", (e) => {
+        if(e.code === "KeyW") keys.w = false;
+        if(e.code === "KeyA") keys.a = false;
+        if(e.code === "KeyS") keys.s = false;
+        if(e.code === "KeyD") keys.d = false;
+      });
+
+      const clock = new THREE.Clock();
+      const velocity = new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      const speed = 6.0;
+
+      function clampPlayer(){
+        camera.position.x = THREE.MathUtils.clamp(camera.position.x, -12, 12);
+        camera.position.z = THREE.MathUtils.clamp(camera.position.z, -22, 16);
+        camera.position.y = 1.7;
+      }
+
+      function animate(){
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.05);
+
+        if (controls.isLocked) {
+          direction.set(0,0,0);
+          if(keys.w) direction.z -= 1;
+          if(keys.s) direction.z += 1;
+          if(keys.a) direction.x -= 1;
+          if(keys.d) direction.x += 1;
+          direction.normalize();
+
+          const accel = 22;
+          velocity.x += (direction.x*speed - velocity.x) * accel * dt;
+          velocity.z += (direction.z*speed - velocity.z) * accel * dt;
+
+          controls.moveRight(velocity.x * dt);
+          controls.moveForward(velocity.z * dt);
+
+          clampPlayer();
+        }
+
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    })();
   </script>
 </body>
 </html>

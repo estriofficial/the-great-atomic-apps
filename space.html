@@ -7,15 +7,12 @@
 
   <style>
     html,body{height:100%;margin:0;background:#06161c;color:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
-    canvas{
-      position:fixed; inset:0; width:100%; height:100%;
-      display:block;
-    }
+    canvas{position:fixed;inset:0;width:100%;height:100%;display:block;}
 
     #ui{
       position:fixed;left:16px;top:16px;right:16px;
       display:flex;gap:10px;align-items:center;justify-content:space-between;
-      z-index:30; pointer-events:none;
+      z-index:30;pointer-events:none;
     }
     .pill{
       pointer-events:auto;
@@ -40,14 +37,12 @@
     }
     a.btn:hover{transform:translateY(-1px)}
     #hint{font-size:.92rem;opacity:.95;color:#d6e6f2}
-    #status{
-      font-size:.9rem;color:#ffd27a;opacity:.95;display:none;
-    }
+    #status{font-size:.9rem;color:#ffd27a;opacity:.95;display:none;}
 
     #center{
       position:fixed;inset:0;
       display:flex;align-items:center;justify-content:center;
-      z-index:25; pointer-events:none;
+      z-index:25;pointer-events:none;
     }
     #panel{
       pointer-events:auto;
@@ -99,12 +94,19 @@
 
   <div id="crosshair"></div>
 
-  <!-- Three.js (non-module) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
-
   <script>
-    (function(){
+    // Load scripts with fallback (fixes “network/adblock” on one CDN)
+    function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    async function boot() {
       const statusEl = document.getElementById("status");
       const startBtn = document.getElementById("start");
       const center = document.getElementById("center");
@@ -119,15 +121,33 @@
         statusEl.textContent = "";
       }
 
-      // Basic checks
-      if (!window.THREE) {
-        showStatus("❌ Three.js failed to load (network/adblock).");
-        return;
+      // Try loading THREE from multiple CDNs
+      try {
+        await loadScript("https://unpkg.com/three@0.160.0/build/three.min.js");
+      } catch(e1) {
+        try {
+          await loadScript("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js");
+        } catch(e2) {
+          showStatus("❌ Three.js failed to load (network/adblock). Disable blocker for this site.");
+          return;
+        }
       }
-      if (!THREE.PointerLockControls) {
-        showStatus("❌ PointerLockControls failed to load (network/adblock).");
-        return;
+
+      // Try loading PointerLockControls from multiple CDNs
+      try {
+        await loadScript("https://unpkg.com/three@0.160.0/examples/js/controls/PointerLockControls.js");
+      } catch(e1) {
+        try {
+          await loadScript("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js");
+        } catch(e2) {
+          showStatus("❌ PointerLockControls failed to load (network/adblock). Disable blocker for this site.");
+          return;
+        }
       }
+
+      // Sanity checks
+      if (!window.THREE) { showStatus("❌ THREE missing after load."); return; }
+      if (!THREE.PointerLockControls) { showStatus("❌ PointerLockControls missing after load."); return; }
 
       // Scene
       const scene = new THREE.Scene();
@@ -188,40 +208,23 @@
       starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
       scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ size:0.08 })));
 
-      // Controls — ANT: bind to the canvas, not body
+      // Controls
       const controls = new THREE.PointerLockControls(camera, renderer.domElement);
 
-      // Pointer lock diagnostics (so it never “fails silently”)
       document.addEventListener("pointerlockerror", () => {
-        showStatus("❌ Pointer lock blocked. Try: click Start again, then click the 3D scene once. Also check site permissions.");
+        showStatus("❌ Pointer lock blocked. Check site permissions, then click Start again.");
       });
 
       function lockNow(){
         clearStatus();
-
-        // Mobile / tablet check (pointer lock often unsupported)
         const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
-        if (isTouch) {
-          showStatus("⚠️ Pointer-lock is limited on mobile. Try on desktop Chrome/Edge.");
-          return;
-        }
-
-        try {
-          controls.lock(); // requests pointer lock on the canvas
-        } catch (e) {
-          showStatus("❌ Couldn’t start pointer lock. Click the page once, then press Start.");
-        }
+        if (isTouch) { showStatus("⚠️ Pointer lock is limited on mobile. Use desktop."); return; }
+        try { controls.lock(); }
+        catch(e) { showStatus("❌ Click the page once, then press Start."); }
       }
 
-      startBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        lockNow();
-      });
-
-      // Also allow click on the scene to lock (nice UX)
-      renderer.domElement.addEventListener("click", () => {
-        if (!controls.isLocked) lockNow();
-      });
+      startBtn.addEventListener("click", (e) => { e.preventDefault(); lockNow(); });
+      renderer.domElement.addEventListener("click", () => { if (!controls.isLocked) lockNow(); });
 
       controls.addEventListener("lock", () => {
         center.style.display = "none";
@@ -291,7 +294,9 @@
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
-    })();
+    }
+
+    boot();
   </script>
 </body>
 </html>

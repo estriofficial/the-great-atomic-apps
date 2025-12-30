@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>3D Space — The Great Atomic Apps</title>
+  <style>
+    html,body{height:100%;margin:0;background:#06161c;color:#fff;font-family:Arial,Helvetica,sans-serif;overflow:hidden;}
+    #ui{
+      position:fixed;left:16px;top:16px;right:16px;display:flex;gap:10px;align-items:center;justify-content:space-between;
+      z-index:10;pointer-events:none;
+    }
+    .pill{
+      pointer-events:auto;
+      background:rgba(0,0,0,.45);
+      border:1px solid rgba(255,255,255,.10);
+      backdrop-filter:blur(8px);
+      border-radius:14px;
+      padding:10px 12px;
+      box-shadow:0 20px 60px rgba(0,0,0,.5);
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    }
+    a.btn{
+      pointer-events:auto;
+      text-decoration:none;
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:bold;
+      border:2px solid rgba(0,230,168,.7);
+      color:#00e6a8;
+      background:transparent;
+    }
+    a.btn:hover{transform:translateY(-1px)}
+    #hint{font-size:.92rem;opacity:.9;color:#d6e6f2}
+    #center{
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;
+      pointer-events:none;
+    }
+    #start{
+      pointer-events:auto;
+      background:#00e6a8;color:#072028;border:none;border-radius:14px;
+      padding:14px 18px;font-weight:800;cursor:pointer;
+      box-shadow:0 18px 45px rgba(0,230,168,.22);
+    }
+    #start:hover{transform:translateY(-2px)}
+    #crosshair{
+      width:10px;height:10px;border:2px solid rgba(255,255,255,.75);border-radius:50%;
+      opacity:.55;display:none;
+    }
+    canvas{display:block;}
+  </style>
+</head>
+
+<body>
+  <div id="ui">
+    <div class="pill">
+      <strong>3D Space</strong>
+      <span id="hint">Click “Start”, then use <b>W A S D</b> to move + mouse to look. <b>ESC</b> to unlock.</span>
+    </div>
+    <div class="pill">
+      <a class="btn" href="index.html">← Back</a>
+    </div>
+  </div>
+
+  <div id="center">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+      <button id="start">Start Walking</button>
+      <div id="crosshair"></div>
+      <div style="opacity:.75;font-size:.9rem;color:#d6e6f2;">Tip: click once to lock the mouse</div>
+    </div>
+  </div>
+
+  <!-- Three.js + controls -->
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+    import { PointerLockControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/PointerLockControls.js";
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x06161c, 0, 85);
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 300);
+    camera.position.set(0, 1.7, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // Lights
+    scene.add(new THREE.HemisphereLight(0xaadfff, 0x0b1c23, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.85);
+    dir.position.set(6, 12, 6);
+    scene.add(dir);
+
+    // Floor
+    const floorGeo = new THREE.PlaneGeometry(400, 400, 2, 2);
+    const floorMat = new THREE.MeshStandardMaterial({ color:0x0b1c23, roughness:0.95, metalness:0.0 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI/2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // Simple “room / landmarks”
+    const boxMat = new THREE.MeshStandardMaterial({ color:0x0f2f38, roughness:0.65, metalness:0.1 });
+    function addBox(x,y,z,sx,sy,sz,color){
+      const m = boxMat.clone();
+      if(color) m.color.setHex(color);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz), m);
+      mesh.position.set(x,y,z);
+      scene.add(mesh);
+      return mesh;
+    }
+
+    // Walls / blocks
+    addBox(0, 1.5, -18, 26, 3, 1, 0x0b2a31);
+    addBox(-13, 1.5, -6, 1, 3, 26, 0x0b2a31);
+    addBox(13, 1.5, -6, 1, 3, 26, 0x0b2a31);
+
+    // Neon “portals”
+    addBox(-6, 1.2, -8, 2.2, 2.4, 0.3, 0x00e6a8);
+    addBox( 6, 1.2, -8, 2.2, 2.4, 0.3, 0x00c994);
+
+    // Columns
+    for(let i=0;i<10;i++){
+      addBox(-10 + i*2.2, 1.0, -14, 0.35, 2.0, 0.35, 0x173c46);
+    }
+
+    // Stars-ish particles
+    const starCount = 800;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(starCount*3);
+    for(let i=0;i<starCount;i++){
+      const i3 = i*3;
+      starPos[i3+0] = (Math.random()-0.5)*200;
+      starPos[i3+1] = Math.random()*90 + 5;
+      starPos[i3+2] = (Math.random()-0.5)*200;
+    }
+    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ size:0.08 });
+    const stars = new THREE.Points(starGeo, starMat);
+    scene.add(stars);
+
+    // Controls (WASD + mouse)
+    const controls = new PointerLockControls(camera, document.body);
+
+    const startBtn = document.getElementById("start");
+    const center = document.getElementById("center");
+    const crosshair = document.getElementById("crosshair");
+
+    startBtn.addEventListener("click", () => {
+      controls.lock();
+    });
+
+    controls.addEventListener("lock", () => {
+      center.style.display = "none";
+      crosshair.style.display = "block";
+    });
+
+    controls.addEventListener("unlock", () => {
+      center.style.display = "flex";
+      crosshair.style.display = "none";
+    });
+
+    // Movement state
+    const keys = { w:false, a:false, s:false, d:false };
+    window.addEventListener("keydown", (e) => {
+      if(e.code === "KeyW") keys.w = true;
+      if(e.code === "KeyA") keys.a = true;
+      if(e.code === "KeyS") keys.s = true;
+      if(e.code === "KeyD") keys.d = true;
+    });
+    window.addEventListener("keyup", (e) => {
+      if(e.code === "KeyW") keys.w = false;
+      if(e.code === "KeyA") keys.a = false;
+      if(e.code === "KeyS") keys.s = false;
+      if(e.code === "KeyD") keys.d = false;
+    });
+
+    // Basic walking (no physics, but feels good)
+    const clock = new THREE.Clock();
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const speed = 6.0;
+
+    function clampPlayer(){
+      // keep within a simple area
+      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -12, 12);
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -22, 16);
+      camera.position.y = 1.7; // keep “eye height”
+    }
+
+    function animate(){
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      if (controls.isLocked) {
+        direction.set(0,0,0);
+        if(keys.w) direction.z -= 1;
+        if(keys.s) direction.z += 1;
+        if(keys.a) direction.x -= 1;
+        if(keys.d) direction.x += 1;
+        direction.normalize();
+
+        // smooth accel/decel
+        const accel = 22;
+        velocity.x += (direction.x*speed - velocity.x) * accel * dt;
+        velocity.z += (direction.z*speed - velocity.z) * accel * dt;
+
+        controls.moveRight(velocity.x * dt);
+        controls.moveForward(velocity.z * dt);
+
+        clampPlayer();
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
